@@ -61,12 +61,12 @@ class Database:
                 CREATE TABLE IF NOT EXISTS credit_book (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     customer TEXT NOT NULL,
-                    contact_number TEXT,
                     amount REAL NOT NULL,
                     date DATE NOT NULL,
                     due_date DATE NOT NULL,
-                    status TEXT NOT NULL,
                     description TEXT,
+                    contact TEXT,
+                    status TEXT DEFAULT 'Pending',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
