@@ -138,15 +138,13 @@ class Database:
     def get_credit_book(self):
         """Fetch all credit book entries"""
         query = """
-        SELECT id, customer, amount, date, due_date, description, 
-               contact, status, created_at 
-        FROM credit_book
+        SELECT * FROM credit_book
         ORDER BY date DESC
         """
         try:
             with self.get_connection() as conn:
                 df = pd.read_sql_query(query, conn)
-                # Convert id to integer type
+                # Ensure id is integer
                 df['id'] = df['id'].astype(int)
                 return df
         except Exception as e:
@@ -180,13 +178,24 @@ class Database:
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
+                # Print debug info
+                print(f"Updating credit {credit_id} to status {new_status}")
                 cursor.execute(query, (new_status, credit_id))
-                if cursor.rowcount == 0:
-                    raise Exception(f"Credit with ID {credit_id} not found")
                 conn.commit()
-                return True
+                
+                # Verify the update
+                verify_query = "SELECT status FROM credit_book WHERE id = ?"
+                cursor.execute(verify_query, (credit_id,))
+                result = cursor.fetchone()
+                
+                if result:
+                    print(f"Updated successfully. New status: {result[0]}")
+                    return True
+                else:
+                    print(f"Credit with ID {credit_id} not found")
+                    return False
         except Exception as e:
-            print(f"Error updating credit status: {str(e)}")
+            print(f"Database error: {str(e)}")
             return False
 
     # Utility Methods
