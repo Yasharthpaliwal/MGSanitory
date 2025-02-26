@@ -1028,87 +1028,58 @@ if check_password():
                                 st.rerun()
 
         with tab3:  # Settled Bills
-            if not st.session_state.credit_book.empty:
-                # Filter for paid credits
-                settled_credits = st.session_state.credit_book[
-                    st.session_state.credit_book['status'] == 'Paid'
-                ].sort_values('date', ascending=False)
+            settled_credits = st.session_state.credit_book[
+                st.session_state.credit_book['status'] == 'Paid'
+            ]
+            
+            if not settled_credits.empty:
+                # Add search and filter
+                col1, col2 = st.columns([2, 1])
+                with col1:
+                    search = st.text_input("🔍 Search by Customer Name")
+                with col2:
+                    try:
+                        min_date = pd.to_datetime(settled_credits['date']).min().date()
+                        max_date = pd.to_datetime(settled_credits['date']).max().date()
+                        date_range = st.date_input(
+                            "Filter by Date Range",
+                            value=(min_date, max_date),
+                            key="settled_date_range"
+                        )
+                    except Exception as e:
+                        date_range = None
                 
-                if not settled_credits.empty:
-                    # Summary metrics for settled credits
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Total Settled Credits", len(settled_credits))
-                    with col2:
-                        total_settled = settled_credits['amount'].sum()
-                        st.metric("Total Settled Amount", f"₹{total_settled:,.2f}")
-                    
-                    st.markdown("---")
-                    
-                    # Add search and filter options
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        search = st.text_input("Search by Customer Name")
-                    with col2:
-                        try:
-                            # Convert dates to datetime.date for the date_input
-                            min_date = pd.to_datetime(settled_credits['date'].min()).date()
-                            max_date = pd.to_datetime(settled_credits['date'].max()).date()
-                            date_range = st.date_input(
-                                "Filter by Date Range",
-                                value=(min_date, max_date),
-                                key="settled_date_range"
-                            )
-                        except Exception as e:
-                            st.error(f"Error with date range: {str(e)}")
-                            date_range = None
-                    
-                    # Apply filters
-                    filtered_credits = settled_credits
-                    if search:
-                        filtered_credits = filtered_credits[
-                            filtered_credits['customer'].str.contains(search, case=False)
-                        ]
-                    if date_range and len(date_range) == 2:
-                        try:
-                            filtered_credits = filtered_credits[
-                                (pd.to_datetime(filtered_credits['date']).dt.date >= date_range[0]) &
-                                (pd.to_datetime(filtered_credits['date']).dt.date <= date_range[1])
-                            ]
-                        except Exception as e:
-                            st.error(f"Error filtering dates: {str(e)}")
-                    
-                    # Display settled credits
-                    for _, row in filtered_credits.iterrows():
-                        credit_id = row['id']
-                        with st.expander(
-                            f"{row['customer']} - ₹{row['amount']:,.2f} (Settled)"
-                        ):
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.write(f"Description: {row['description']}")
-                                try:
-                                    credit_date = pd.to_datetime(row['date']).strftime('%Y-%m-%d')
-                                    due_date = pd.to_datetime(row['due_date']).strftime('%Y-%m-%d')
-                                    st.write(f"Credit Date: {credit_date}")
-                                    st.write(f"Due Date: {due_date}")
-                                except Exception as e:
-                                    st.write("Date format error")
-                            
-                            # Display documents
-                            display_documents('credit', credit_id)
-                            
-                            # Option to reactivate if needed
-                            if st.button("Reactivate Credit", key=f"reactivate_{credit_id}"):
-                                db.update_credit_status(credit_id, 'Pending')
+                # Apply filters
+                filtered_credits = settled_credits
+                if search:
+                    filtered_credits = filtered_credits[
+                        filtered_credits['customer'].str.contains(search, case=False)
+                    ]
+                if date_range and len(date_range) == 2:
+                    filtered_credits = filtered_credits[
+                        (pd.to_datetime(filtered_credits['date']).dt.date >= date_range[0]) &
+                        (pd.to_datetime(filtered_credits['date']).dt.date <= date_range[1])
+                    ]
+                
+                # Display settled credits
+                for _, row in filtered_credits.iterrows():
+                    with st.expander(f"{row['customer']} - ₹{row['amount']:,.2f} (Settled)"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(f"Description: {row['description']}")
+                            st.write(f"Date: {row['date']}")
+                            st.write(f"Due Date: {row['due_date']}")
+                            if row.get('contact'):
+                                st.write(f"Contact: {row['contact']}")
+                        
+                        with col2:
+                            if st.button("Reactivate Credit", key=f"reactivate_{row['id']}"):
+                                db.update_credit_status(row['id'], 'Pending')
+                                st.success("Credit reactivated!")
                                 st.session_state.credit_book = db.get_credit_book()
-                                st.warning("Credit reactivated!")
-                                time.sleep(1)
                                 st.rerun()
-                else:
-                    st.info("No settled bills yet")
             else:
-                st.info("No credit entries")
+                st.info("No settled bills yet")
 
     # Analysis Page
     elif page == "Analysis":
