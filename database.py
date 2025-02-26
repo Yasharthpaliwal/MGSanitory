@@ -21,6 +21,9 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             
+            # Recreate credit_book table with new schema
+            self.recreate_credit_book_table()
+            
             # Create inventory table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS inventory (
@@ -56,21 +59,6 @@ class Database:
                 )
             ''')
 
-            # Create credit_book table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS credit_book (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    customer TEXT NOT NULL,
-                    amount REAL NOT NULL,
-                    date DATE NOT NULL,
-                    due_date DATE NOT NULL,
-                    description TEXT,
-                    contact TEXT,
-                    status TEXT DEFAULT 'Pending',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-
             # Add documents table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS documents (
@@ -83,12 +71,30 @@ class Database:
                 )
             ''')
 
-            # Add contact_number column if it doesn't exist
-            cursor.execute("PRAGMA table_info(credit_book)")
-            columns = [col[1] for col in cursor.fetchall()]
-            if 'contact_number' not in columns:
-                cursor.execute('ALTER TABLE credit_book ADD COLUMN contact_number TEXT')
+            conn.commit()
+
+    def recreate_credit_book_table(self):
+        """Recreate credit_book table with updated schema"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
             
+            # Drop existing table
+            cursor.execute('DROP TABLE IF EXISTS credit_book')
+            
+            # Create new table with contact field
+            cursor.execute('''
+                CREATE TABLE credit_book (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    date DATE NOT NULL,
+                    due_date DATE NOT NULL,
+                    description TEXT,
+                    contact TEXT,
+                    status TEXT DEFAULT 'Pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
             conn.commit()
 
     # Inventory Methods
