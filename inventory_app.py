@@ -1005,15 +1005,28 @@ if check_password():
 
         with tab2:  # Active Credits
             if not st.session_state.credit_book.empty:
-                # Filter for active (non-paid) credits
+                # Filter for active credits
                 active_credits = st.session_state.credit_book[
                     st.session_state.credit_book['status'] != 'Paid'
                 ].copy()
                 
                 if not active_credits.empty:
+                    # Summary metrics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Active Credits", len(active_credits))
+                    with col2:
+                        total_pending = active_credits['amount'].sum()
+                        st.metric("Total Pending Amount", f"₹{total_pending:,.2f}")
+                    with col3:
+                        overdue_count = len(active_credits[active_credits['status'] == 'Overdue'])
+                        st.metric("Overdue Credits", overdue_count)
+                    
+                    st.markdown("---")
+                    
                     # Display active credits
                     for _, row in active_credits.iterrows():
-                        credit_id = int(row['id'])  # Ensure credit_id is an integer
+                        credit_id = int(row['id'])
                         with st.expander(
                             f"{row['customer']} - ₹{row['amount']:,.2f} ({row['status']})"
                         ):
@@ -1022,26 +1035,31 @@ if check_password():
                                 st.write(f"Description: {row['description']}")
                                 st.write(f"Date: {pd.to_datetime(row['date']).strftime('%Y-%m-%d')}")
                                 st.write(f"Due Date: {pd.to_datetime(row['due_date']).strftime('%Y-%m-%d')}")
-                                if 'contact' in row and row['contact']:
+                                if pd.notna(row['contact']) and row['contact']:
                                     st.write(f"📞 Contact: {row['contact']}")
                             
                             with col2:
                                 current_status = row['status']
                                 st.write(f"Current Status: {current_status}")
                                 
-                                # Add a separate button just for payment confirmation
+                                # Payment confirmation button
                                 if st.button("💰 Mark as Paid", key=f"pay_{credit_id}"):
-                                    try:
-                                        if db.update_credit_status(credit_id, 'Paid'):
-                                            st.success("Payment confirmed! Bill settled successfully.")
-                                            # Refresh the credit book data
-                                            st.session_state.credit_book = db.get_credit_book()
-                                            time.sleep(1)
-                                            st.rerun()
-                                        else:
-                                            st.error("Failed to update status")
-                                    except Exception as e:
-                                        st.error(f"Failed to update status: {str(e)}")
+                                    if db.update_credit_status(credit_id, 'Paid'):
+                                        st.success("Payment confirmed! Bill settled successfully.")
+                                        # Force refresh
+                                        st.session_state.credit_book = db.get_credit_book()
+                                        time.sleep(0.5)
+                                        st.rerun()
+                                    else:
+                                        st.error(f"Failed to update status for credit {credit_id}")
+                                
+                                # Overdue button
+                                if current_status != 'Overdue' and st.button("⚠️ Mark as Overdue", key=f"overdue_{credit_id}"):
+                                    if db.update_credit_status(credit_id, 'Overdue'):
+                                        st.warning("Marked as overdue!")
+                                        st.session_state.credit_book = db.get_credit_book()
+                                        time.sleep(0.5)
+                                        st.rerun()
 
         with tab3:  # Settled Bills
             if not st.session_state.credit_book.empty:
