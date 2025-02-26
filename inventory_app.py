@@ -209,13 +209,13 @@ if check_password():
                 st.session_state.inventory['item'] == product_id
             ].iloc[-1]
             
-            cost_per_unit = item_data['Cost Per Unit']
+            cost_per_unit = item_data['cost_per_unit']
             price_per_unit = sale_price / quantity
             profit_per_unit = price_per_unit - cost_per_unit
             total_profit = profit_per_unit * quantity
             
             return {
-                'Category': item_data['Category'],
+                'Category': item_data['category'],
                 'Cost_Per_Unit': cost_per_unit,
                 'Price_Per_Unit': price_per_unit,
                 'Profit_Per_Unit': profit_per_unit,
@@ -297,12 +297,11 @@ if check_password():
         """Calculate current inventory status including sold and remaining quantities"""
         status_df = inventory_df.copy()
         
-        # Initialize columns for tracking (update column names to match database)
+        # Use correct column names matching the database
         status_df['Total Purchased'] = status_df.groupby('item')['quantity_purchased'].transform('sum')
         status_df['Total Sold'] = 0
         status_df['Remaining Quantity'] = status_df['quantity_purchased']
         
-        # Calculate total sold quantities from sales data
         if not sales_df.empty:
             sold_quantities = sales_df.groupby('product_id')['quantity'].sum()
             for item in status_df['item'].unique():
@@ -312,6 +311,9 @@ if check_password():
                     status_df.loc[mask, 'Remaining Quantity'] = (
                         status_df.loc[mask, 'Total Purchased'] - sold_quantities[item]
                     )
+        
+        # Make sure to use 'cost_per_unit' instead of 'Cost Per Unit'
+        status_df['Total Value'] = status_df['Remaining Quantity'] * status_df['cost_per_unit']
         
         return status_df
 
@@ -636,14 +638,14 @@ if check_password():
                 st.subheader("Inventory Details")
                 display_cols = [
                     'item', 'category', 'quantity_purchased', 'Total Sold', 
-                    'Remaining Quantity', 'Cost Per Unit', 'total_purchase_price', 
+                    'Remaining Quantity', 'cost_per_unit', 'total_purchase_price', 
                     'variable_expenses', 'supplier', 'date_purchased'
                 ]
                 
                 st.dataframe(
                     inventory_status[display_cols].sort_values('Remaining Quantity', ascending=False),
                     column_config={
-                        'Cost Per Unit': st.column_config.NumberColumn(format="₹%.2f"),
+                        'cost_per_unit': st.column_config.NumberColumn(format="₹%.2f"),
                         'total_purchase_price': st.column_config.NumberColumn(format="₹%.2f"),
                         'variable_expenses': st.column_config.NumberColumn(format="₹%.2f"),
                         'date_purchased': st.column_config.DateColumn("Purchase Date"),
