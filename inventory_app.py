@@ -761,10 +761,12 @@ if check_password():
                         Category: {category}
                         """)
                         
-                        quantity = st.number_input("Quantity", 
-                                                 min_value=1, 
-                                                 max_value=available_quantity, 
-                                                 step=1)
+                        quantity = st.number_input(
+                            "Quantity", 
+                            min_value=1,
+                            max_value=int(available_quantity) if available_quantity > 0 else 1,
+                            value=1
+                        )
                         
                         sale_date = st.date_input("Sale Date", value=datetime.today())
                 
