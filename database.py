@@ -135,24 +135,37 @@ class Database:
             return pd.read_sql_query("SELECT * FROM sales", conn)
 
     # Credit Book Methods
-    def add_credit(self, customer, contact_number, amount, date, due_date, status, description):
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO credit_book (
-                    customer, contact_number, amount, date, due_date, status, description
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (customer, contact_number, amount, date, due_date, status, description))
-            conn.commit()
-
     def get_credit_book(self):
-        """Get credit book with proper date formatting"""
-        with self.get_connection() as conn:
-            df = pd.read_sql_query("SELECT * FROM credit_book", conn)
-            # Convert date strings to datetime objects
-            df['date'] = pd.to_datetime(df['date'])
-            df['due_date'] = pd.to_datetime(df['due_date'])
-            return df
+        """Fetch all credit book entries"""
+        query = """
+        SELECT id, customer, amount, date, due_date, description, 
+               contact, status, created_at 
+        FROM credit_book
+        ORDER BY date DESC
+        """
+        try:
+            with self.get_connection() as conn:
+                return pd.read_sql_query(query, conn)
+        except Exception as e:
+            print(f"Error fetching credit book: {str(e)}")
+            return pd.DataFrame()
+
+    def add_credit_entry(self, customer, amount, date, due_date, description, contact, status):
+        """Add a new credit entry"""
+        query = """
+        INSERT INTO credit_book (customer, amount, date, due_date, description, contact, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (customer, amount, date, due_date, description, contact, status))
+                credit_id = cursor.lastrowid
+                conn.commit()
+                return credit_id
+        except Exception as e:
+            print(f"Error adding credit entry: {str(e)}")
+            return None
 
     def update_credit_status(self, credit_id, new_status):
         """Update the status of a credit entry"""
