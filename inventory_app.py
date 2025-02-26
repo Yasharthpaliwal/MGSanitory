@@ -1004,44 +1004,28 @@ if check_password():
                             st.error(f"Error adding credit: {str(e)}")
 
         with tab2:  # Active Credits
-            if not st.session_state.credit_book.empty:
-                # Debug info
-                st.write("Debug Info:")
-                st.write("Credit Book Data:", st.session_state.credit_book.to_dict('records'))
+            credits = st.session_state.credit_book
+            
+            if not credits.empty:
+                active_credits = credits[credits['status'] != 'Paid']
                 
-                active_credits = st.session_state.credit_book[
-                    st.session_state.credit_book['status'] != 'Paid'
-                ].copy()
-                
-                if not active_credits.empty:
-                    for _, row in active_credits.iterrows():
-                        credit_id = int(row['id'])
-                        with st.expander(
-                            f"{row['customer']} - ₹{row['amount']:,.2f} ({row['status']})"
-                        ):
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.write(f"Credit ID: {credit_id}")  # Debug info
-                                st.write(f"Description: {row['description']}")
-                                st.write(f"Date: {pd.to_datetime(row['date']).strftime('%Y-%m-%d')}")
-                                st.write(f"Due Date: {pd.to_datetime(row['due_date']).strftime('%Y-%m-%d')}")
-                                if pd.notna(row['contact']) and row['contact']:
-                                    st.write(f"📞 Contact: {row['contact']}")
-                            
-                            with col2:
-                                current_status = row['status']
-                                st.write(f"Current Status: {current_status}")
-                                
-                                # Payment confirmation button
-                                if st.button("💰 Mark as Paid", key=f"pay_{credit_id}"):
-                                    st.write(f"Attempting to update credit {credit_id}...")  # Debug info
-                                    if db.update_credit_status(credit_id, 'Paid'):
-                                        st.success(f"Successfully updated credit {credit_id} to Paid")
-                                        st.session_state.credit_book = db.get_credit_book()
-                                        time.sleep(0.5)
-                                        st.rerun()
-                                    else:
-                                        st.error(f"Failed to update credit {credit_id}. Check database logs.")
+                for _, row in active_credits.iterrows():
+                    with st.expander(f"{row['customer']} - ₹{row['amount']:,.2f}"):
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.write(f"Description: {row['description']}")
+                            st.write(f"Date: {row['date']}")
+                            st.write(f"Due Date: {row['due_date']}")
+                            if row.get('contact'):
+                                st.write(f"Contact: {row['contact']}")
+                        
+                        with col2:
+                            if st.button("Mark as Paid", key=f"pay_{row['id']}"):
+                                db.update_credit_status(row['id'], 'Paid')
+                                st.success("Updated!")
+                                st.session_state.credit_book = db.get_credit_book()
+                                st.rerun()
 
         with tab3:  # Settled Bills
             if not st.session_state.credit_book.empty:
