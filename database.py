@@ -136,26 +136,11 @@ class Database:
 
     # Credit Book Methods
     def get_credit_book(self):
-        """Fetch all credit book entries"""
+        """Simple function to get all credits"""
         query = "SELECT * FROM credit_book ORDER BY date DESC"
-        try:
-            with self.get_connection() as conn:
-                # Print table schema
-                cursor = conn.cursor()
-                cursor.execute("PRAGMA table_info(credit_book)")
-                columns = cursor.fetchall()
-                print("Credit book columns:", columns)
-                
-                # Fetch data
-                df = pd.read_sql_query(query, conn)
-                print("Fetched credit book data:", df.to_dict('records'))
-                
-                if not df.empty:
-                    df['id'] = df['id'].astype(int)
-                return df
-        except Exception as e:
-            print(f"Error fetching credit book: {str(e)}")
-            return pd.DataFrame()
+        
+        with self.get_connection() as conn:
+            return pd.read_sql_query(query, conn)
 
     def add_credit_entry(self, customer, amount, date, due_date, description, contact, status):
         """Add a new credit entry"""
@@ -175,41 +160,14 @@ class Database:
             return None
 
     def update_credit_status(self, credit_id, new_status):
-        """Update the status of a credit entry"""
-        try:
-            # First, verify the credit exists
-            check_query = "SELECT id, status FROM credit_book WHERE id = ?"
-            
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Check if credit exists
-                cursor.execute(check_query, (credit_id,))
-                existing_credit = cursor.fetchone()
-                
-                if not existing_credit:
-                    print(f"Credit {credit_id} not found in database")
-                    return False
-                
-                # Update status
-                update_query = "UPDATE credit_book SET status = ? WHERE id = ?"
-                cursor.execute(update_query, (new_status, credit_id))
-                conn.commit()
-                
-                # Verify update
-                cursor.execute(check_query, (credit_id,))
-                updated_credit = cursor.fetchone()
-                
-                if updated_credit and updated_credit[1] == new_status:
-                    print(f"Successfully updated credit {credit_id} to {new_status}")
-                    return True
-                else:
-                    print(f"Update failed. Current status: {updated_credit[1] if updated_credit else 'None'}")
-                    return False
-                
-        except Exception as e:
-            print(f"Database error in update_credit_status: {str(e)}")
-            return False
+        """Simple function to update credit status"""
+        query = "UPDATE credit_book SET status = ? WHERE id = ?"
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (new_status, credit_id))
+            conn.commit()
+            return True
 
     # Utility Methods
     def calculate_total_quantity(self, item):
