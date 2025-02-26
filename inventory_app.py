@@ -963,42 +963,23 @@ if check_password():
         tab1, tab2, tab3 = st.tabs(["Add Credit", "Active Credits", "Settled Bills"])
         
         with tab1:
-            with st.form(key="add_credit_form"):
+            with st.form("credit_form"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    customer = st.text_input("Customer Name*")
-                    contact = st.text_input(
-                        "Contact Number",
-                        placeholder="Enter 10-digit number",
-                        help="Enter customer's contact number"
-                    )
-                    amount = st.number_input("Amount*", min_value=0.0, step=0.01)
-                    date = st.date_input("Credit Date*", value=datetime.today())
-                
+                    customer = st.text_input("Customer Name")
+                    amount = st.number_input("Amount", min_value=0.0)
+                    date = st.date_input("Date", datetime.now())
                 with col2:
-                    due_date = st.date_input("Due Date*", value=datetime.today())
-                    description = st.text_area(
-                        "Description",
-                        placeholder="Enter transaction details"
-                    )
+                    contact = st.text_input("Contact Number")  # Added contact field
+                    description = st.text_area("Description")
+                    due_date = st.date_input("Due Date", datetime.now())
                 
-                # Add file upload for credit documents
-                uploaded_files = st.file_uploader(
-                    "Upload Documents", 
-                    accept_multiple_files=True,
-                    type=['png', 'jpg', 'jpeg', 'pdf']
-                )
+                uploaded_files = st.file_uploader("Upload Documents", accept_multiple_files=True)
+                submitted = st.form_submit_button("Add Credit Entry")
                 
-                submit = st.form_submit_button("Add Credit")
-                if submit:
-                    if not customer:
-                        st.error("Customer name is required!")
-                    elif amount <= 0:
-                        st.error("Amount must be greater than 0!")
-                    elif contact and not contact.isdigit():
-                        st.error("Contact number should only contain digits!")
-                    elif contact and len(contact) != 10:
-                        st.error("Contact number should be 10 digits!")
+                if submitted:
+                    if not customer or amount <= 0:
+                        st.error("Please fill all required fields")
                     else:
                         try:
                             # Add credit entry and get the new credit ID
@@ -1012,29 +993,13 @@ if check_password():
                                 status="Pending"
                             )
                             
-                            # Handle file uploads
-                            if uploaded_files:
-                                for file in uploaded_files:
-                                    if file.type.startswith('image/'):
-                                        st.image(file, caption=file.name, width=200)
-                                        image_url = upload_to_github(file)
-                                        if image_url:
-                                            success, message = db.save_document(image_url, 'credit', credit_id)
-                                            if success:
-                                                st.success(f"Image uploaded: {file.name}")
-                                            else:
-                                                st.error(f"Failed to save document reference: {message}")
-                                    elif file.type == 'application/pdf':
-                                        st.markdown(f"📄 {file.name} ready for upload")
-                                    
-                                    success, message = db.save_document(file, 'credit', credit_id)
-                                    if success:
-                                        st.success(f"Uploaded: {file.name}")
-                                    else:
-                                        st.error(f"Failed to upload {file.name}: {message}")
-                        
-                            st.success(f"Added credit entry for {customer}")
-                            st.rerun()
+                            if credit_id:
+                                st.success(f"Added credit entry for {customer}")
+                                # Force refresh the credit book data
+                                st.session_state.credit_book = db.get_credit_book()
+                                st.rerun()
+                            else:
+                                st.error("Failed to add credit entry")
                         except Exception as e:
                             st.error(f"Error adding credit: {str(e)}")
 
