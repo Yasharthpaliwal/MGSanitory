@@ -145,7 +145,10 @@ class Database:
         """
         try:
             with self.get_connection() as conn:
-                return pd.read_sql_query(query, conn)
+                df = pd.read_sql_query(query, conn)
+                # Convert id to integer type
+                df['id'] = df['id'].astype(int)
+                return df
         except Exception as e:
             print(f"Error fetching credit book: {str(e)}")
             return pd.DataFrame()
@@ -169,34 +172,22 @@ class Database:
 
     def update_credit_status(self, credit_id, new_status):
         """Update the status of a credit entry"""
+        query = """
+        UPDATE credit_book 
+        SET status = ? 
+        WHERE id = ?
+        """
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
-                # Print debug information
-                print(f"Updating credit {credit_id} to status: {new_status}")
-                
-                # First verify the credit exists
-                cursor.execute("SELECT id FROM credit_book WHERE id = ?", (credit_id,))
-                if not cursor.fetchone():
+                cursor.execute(query, (new_status, credit_id))
+                if cursor.rowcount == 0:
                     raise Exception(f"Credit with ID {credit_id} not found")
-                
-                # Update the status
-                cursor.execute('''
-                    UPDATE credit_book 
-                    SET status = ? 
-                    WHERE id = ?
-                ''', (new_status, credit_id))
-                
-                # Verify the update
-                cursor.execute("SELECT status FROM credit_book WHERE id = ?", (credit_id,))
-                updated_status = cursor.fetchone()[0]
-                print(f"Status updated to: {updated_status}")
-                
                 conn.commit()
                 return True
         except Exception as e:
-            print(f"Error updating credit status: {e}")
-            raise e
+            print(f"Error updating credit status: {str(e)}")
+            return False
 
     # Utility Methods
     def calculate_total_quantity(self, item):
