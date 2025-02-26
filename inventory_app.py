@@ -1005,26 +1005,15 @@ if check_password():
 
         with tab2:  # Active Credits
             if not st.session_state.credit_book.empty:
-                # Filter for active credits
+                # Debug info
+                st.write("Debug Info:")
+                st.write("Credit Book Data:", st.session_state.credit_book.to_dict('records'))
+                
                 active_credits = st.session_state.credit_book[
                     st.session_state.credit_book['status'] != 'Paid'
                 ].copy()
                 
                 if not active_credits.empty:
-                    # Summary metrics
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Total Active Credits", len(active_credits))
-                    with col2:
-                        total_pending = active_credits['amount'].sum()
-                        st.metric("Total Pending Amount", f"₹{total_pending:,.2f}")
-                    with col3:
-                        overdue_count = len(active_credits[active_credits['status'] == 'Overdue'])
-                        st.metric("Overdue Credits", overdue_count)
-                    
-                    st.markdown("---")
-                    
-                    # Display active credits
                     for _, row in active_credits.iterrows():
                         credit_id = int(row['id'])
                         with st.expander(
@@ -1032,6 +1021,7 @@ if check_password():
                         ):
                             col1, col2 = st.columns(2)
                             with col1:
+                                st.write(f"Credit ID: {credit_id}")  # Debug info
                                 st.write(f"Description: {row['description']}")
                                 st.write(f"Date: {pd.to_datetime(row['date']).strftime('%Y-%m-%d')}")
                                 st.write(f"Due Date: {pd.to_datetime(row['due_date']).strftime('%Y-%m-%d')}")
@@ -1044,22 +1034,14 @@ if check_password():
                                 
                                 # Payment confirmation button
                                 if st.button("💰 Mark as Paid", key=f"pay_{credit_id}"):
+                                    st.write(f"Attempting to update credit {credit_id}...")  # Debug info
                                     if db.update_credit_status(credit_id, 'Paid'):
-                                        st.success("Payment confirmed! Bill settled successfully.")
-                                        # Force refresh
+                                        st.success(f"Successfully updated credit {credit_id} to Paid")
                                         st.session_state.credit_book = db.get_credit_book()
                                         time.sleep(0.5)
                                         st.rerun()
                                     else:
-                                        st.error(f"Failed to update status for credit {credit_id}")
-                                
-                                # Overdue button
-                                if current_status != 'Overdue' and st.button("⚠️ Mark as Overdue", key=f"overdue_{credit_id}"):
-                                    if db.update_credit_status(credit_id, 'Overdue'):
-                                        st.warning("Marked as overdue!")
-                                        st.session_state.credit_book = db.get_credit_book()
-                                        time.sleep(0.5)
-                                        st.rerun()
+                                        st.error(f"Failed to update credit {credit_id}. Check database logs.")
 
         with tab3:  # Settled Bills
             if not st.session_state.credit_book.empty:
