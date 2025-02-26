@@ -12,6 +12,7 @@ import base64
 
 # Initialize database connection
 db = Database()
+db.recreate_credit_book_table()  # This will reset the credit_book table
 
 # Debug function
 def debug_dataframe(df, title="DataFrame Debug Info", show_debug=False):
