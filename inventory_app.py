@@ -206,7 +206,7 @@ if check_password():
         try:
             # Get cost per unit from inventory
             item_data = st.session_state.inventory[
-                st.session_state.inventory['Item'] == product_id
+                st.session_state.inventory['item'] == product_id
             ].iloc[-1]
             
             cost_per_unit = item_data['Cost Per Unit']
@@ -240,14 +240,25 @@ if check_password():
 
     def calculate_total_quantity(item):
         """Calculate current quantity for an item"""
-        total_purchased = st.session_state.inventory[st.session_state.inventory['Item'] == item]['Quantity Purchased'].sum()
-        total_sold = st.session_state.sales[st.session_state.sales['Item'] == item]['Quantity Sold'].sum() if not st.session_state.sales.empty else 0
+        total_purchased = st.session_state.inventory[st.session_state.inventory['item'] == item]['quantity_purchased'].sum()
+        total_sold = st.session_state.sales[st.session_state.sales['item'] == item]['quantity'].sum() if not st.session_state.sales.empty else 0
         return total_purchased - total_sold
 
-    def add_credit(customer, amount, date, due_date, description, status="Pending"):
-        db.add_credit(customer, amount, date, due_date, status, description)
-        # Refresh session state
-        st.session_state.credit_book = db.get_credit_book()
+    def add_credit(customer, amount, date, due_date, description, contact=None, status="Pending"):
+        try:
+            query = """
+            INSERT INTO credit_book (customer, amount, date, due_date, description, contact, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """
+            params = (customer, amount, date, due_date, description, contact, status)
+            
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                credit_id = cursor.lastrowid
+                return credit_id
+        except Exception as e:
+            raise Exception(f"Failed to add credit: {str(e)}")
 
     def update_credit_status(credit_id, new_status):
         db.update_credit_status(credit_id, new_status)
@@ -266,10 +277,10 @@ if check_password():
         df = item_df.copy()
         
         # Calculate current quantity
-        df['Current Quantity'] = df['Item'].apply(calculate_total_quantity)
+        df['Current Quantity'] = df['item'].apply(calculate_total_quantity)
         
         # Calculate total investment
-        df['Total Investment'] = df['Purchase Price'] * df['Quantity Purchased']
+        df['Total Investment'] = df['Purchase Price'] * df['quantity_purchased']
         
         # Calculate potential revenue
         df['Potential Revenue'] = df['Selling Price'] * df['Current Quantity']
@@ -599,20 +610,20 @@ if check_password():
                 # Apply filters
                 if search:
                     inventory_status = inventory_status[
-                        inventory_status['Item'].str.contains(search, case=False)
+                        inventory_status['item'].str.contains(search, case=False)
                     ]
                 if category_filter:
                     inventory_status = inventory_status[
-                        inventory_status['Category'].isin(category_filter)
+                        inventory_status['category'].isin(category_filter)
                     ]
                 
                 # Display summary metrics
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("Total Items", len(inventory_status['Item'].unique()))
+                    st.metric("Total Items", len(inventory_status['item'].unique()))
                 with col2:
-                    total_investment = (inventory_status['Total Purchase Price'] + 
-                                     inventory_status['Variable Expenses']).sum()
+                    total_investment = (inventory_status['total_purchase_price'] + 
+                                     inventory_status['variable_expenses']).sum()
                     st.metric("Total Investment", f"₹{total_investment:,.2f}")
                 with col3:
                     total_remaining = inventory_status['Remaining Quantity'].sum()
@@ -624,18 +635,18 @@ if check_password():
                 # Display detailed inventory table
                 st.subheader("Inventory Details")
                 display_cols = [
-                    'Item', 'Category', 'Quantity Purchased', 'Total Sold', 
-                    'Remaining Quantity', 'Cost Per Unit', 'Total Purchase Price', 
-                    'Variable Expenses', 'Supplier', 'Date Purchased'
+                    'item', 'category', 'quantity_purchased', 'Total Sold', 
+                    'Remaining Quantity', 'Cost Per Unit', 'total_purchase_price', 
+                    'variable_expenses', 'supplier', 'date_purchased'
                 ]
                 
                 st.dataframe(
                     inventory_status[display_cols].sort_values('Remaining Quantity', ascending=False),
                     column_config={
                         'Cost Per Unit': st.column_config.NumberColumn(format="₹%.2f"),
-                        'Total Purchase Price': st.column_config.NumberColumn(format="₹%.2f"),
-                        'Variable Expenses': st.column_config.NumberColumn(format="₹%.2f"),
-                        'Date Purchased': st.column_config.DateColumn("Purchase Date"),
+                        'total_purchase_price': st.column_config.NumberColumn(format="₹%.2f"),
+                        'variable_expenses': st.column_config.NumberColumn(format="₹%.2f"),
+                        'date_purchased': st.column_config.DateColumn("Purchase Date"),
                         'Remaining Quantity': st.column_config.NumberColumn(
                             "Remaining Stock",
                             help="Current available stock after sales"
@@ -649,16 +660,16 @@ if check_password():
                 
                 # Show stock movement visualization
                 st.subheader("Stock Movement")
-                movement_data = inventory_status.groupby('Item').agg({
+                movement_data = inventory_status.groupby('item').agg({
                     'Total Purchased': 'sum',
                     'Total Sold': 'sum',
                     'Remaining Quantity': 'sum'
                 }).reset_index()
                 
                 fig = go.Figure(data=[
-                    go.Bar(name='Purchased', x=movement_data['Item'], y=movement_data['Total Purchased']),
-                    go.Bar(name='Sold', x=movement_data['Item'], y=movement_data['Total Sold']),
-                    go.Bar(name='Remaining', x=movement_data['Item'], y=movement_data['Remaining Quantity'])
+                    go.Bar(name='Purchased', x=movement_data['item'], y=movement_data['Total Purchased']),
+                    go.Bar(name='Sold', x=movement_data['item'], y=movement_data['Total Sold']),
+                    go.Bar(name='Remaining', x=movement_data['item'], y=movement_data['Remaining Quantity'])
                 ])
                 fig.update_layout(barmode='group', title='Stock Movement by Item')
                 st.plotly_chart(fig)
@@ -667,11 +678,11 @@ if check_password():
                 st.subheader("Item Documents")
                 selected_item = st.selectbox(
                     "Select Item to View Documents",
-                    options=st.session_state.inventory['Item'].unique()
+                    options=st.session_state.inventory['item'].unique()
                 )
                 if selected_item:
                     item_id = st.session_state.inventory[
-                        st.session_state.inventory['Item'] == selected_item
+                        st.session_state.inventory['item'] == selected_item
                     ].index[0]
                     display_documents('inventory', item_id)
             else:
@@ -694,7 +705,7 @@ if check_password():
                 if not low_stock.empty:
                     st.warning(f"Items below threshold ({threshold} units)")
                     st.dataframe(
-                        low_stock[['Item', 'Category', 'Remaining Quantity', 'Supplier']],
+                        low_stock[['item', 'category', 'Remaining Quantity', 'supplier']],
                         column_config={
                             'Remaining Quantity': st.column_config.NumberColumn(
                                 "Remaining Stock",
